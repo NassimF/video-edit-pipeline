@@ -239,14 +239,14 @@ data/output/
 
 ## GPU Memory & Runtime
 
-| Stage | Model | GPU | VRAM | Time (80 frames, 480p) |
+| Stage | Model | GPU | VRAM | Time (85 frames, 480p, 2 objects) |
 |---|---|---|---|---|
-| SAM2 segmentation | SAM2.1-Large | GPU 0 | ~4 GB | ~1 min |
-| Omnimatte Stage 1 (Casper) | Wan2.1-Fun-1.3B | GPU 0 | ~25 GB | ~20 min |
-| Omnimatte Stage 2 (RGBA) | Optimization | GPU 0 | ~8 GB | ~10 min |
-| WAN VACE 1.3B | WAN VACE 1.3B | GPU 1 | ~10 GB | ~5 min |
+| SAM2 segmentation | SAM2.1-Large | GPU 0 | ~4 GB | ~1–2 min |
+| Omnimatte Stage 1 (Casper) | Wan2.1-Fun-1.3B | GPU 0 | ~25 GB | ~20–25 min |
+| Omnimatte Stage 2 (RGBA) | Optimization | GPU 0 | ~8 GB | ~25–30 min |
+| WAN VACE 1.3B | WAN VACE 1.3B | GPU 1 | ~10 GB | ~8–10 min |
 
-**Total (1.3B mode): ~35–40 minutes per video**
+**Total (1.3B mode, 2 objects): ~55–70 minutes per video**
 
 ---
 
