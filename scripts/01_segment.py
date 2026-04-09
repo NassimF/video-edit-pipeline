@@ -61,27 +61,53 @@ def extract_frames(video_path: str, out_dir: Path, resolution: str = "832x480") 
     return len(frames)
 
 
-def save_mask_video(mask_dir: Path, out_path: Path, fps: float = 16.0) -> None:
-    """Save binary mask PNGs as a coloured video for visual inspection."""
-    frames = sorted(mask_dir.glob("*.png"))
-    if not frames:
+def save_mask_video(
+    mask_dir: Path,
+    out_path: Path,
+    frame_dir: Path = None,
+    fps: float = 16.0,
+) -> None:
+    """
+    Save mask video using ffmpeg (avoids OpenCV codec issues).
+    If frame_dir is provided, overlays the mask as a red tint on the original
+    frames and encodes via ffmpeg. Otherwise encodes the raw mask PNGs directly.
+    """
+    import tempfile, shutil
+
+    mask_frames = sorted(mask_dir.glob("*.png"))
+    if not mask_frames:
         return
-    sample = cv2.imread(str(frames[0]), cv2.IMREAD_GRAYSCALE)
-    h, w = sample.shape
-    writer = cv2.VideoWriter(
-        str(out_path),
-        cv2.VideoWriter_fourcc(*"mp4v"),
-        fps,
-        (w, h),
-        isColor=True,
-    )
-    for f in frames:
-        gray = cv2.imread(str(f), cv2.IMREAD_GRAYSCALE)
-        # Green channel for masks — easier to see on dark backgrounds
-        colour = np.zeros((h, w, 3), dtype=np.uint8)
-        colour[:, :, 1] = gray
-        writer.write(colour)
-    writer.release()
+
+    if frame_dir is not None and frame_dir.exists():
+        # Build overlay frames in a temp dir, then encode with ffmpeg
+        orig_frames = sorted(frame_dir.glob("*.jpg"))
+        tmpdir = Path(tempfile.mkdtemp(prefix="mask_overlay_"))
+        try:
+            for i, (mf, of) in enumerate(zip(mask_frames, orig_frames)):
+                orig = cv2.imread(str(of))
+                mask = cv2.imread(str(mf), cv2.IMREAD_GRAYSCALE)
+                h, w = orig.shape[:2]
+                mask = cv2.resize(mask, (w, h))
+                overlay = orig.copy()
+                red_pixels = mask > 127
+                overlay[red_pixels] = (
+                    overlay[red_pixels] * 0.4 +
+                    np.array([0, 0, 200]) * 0.6
+                ).astype(np.uint8)
+                cv2.imwrite(str(tmpdir / f"{i:05d}.png"), overlay)
+
+            os.system(
+                f'ffmpeg -framerate {fps} -i "{tmpdir}/%05d.png" '
+                f'-c:v libx264 -pix_fmt yuv420p -y "{out_path}" -loglevel error'
+            )
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+    else:
+        # Encode raw mask PNGs directly
+        os.system(
+            f'ffmpeg -framerate {fps} -i "{mask_dir}/%05d.png" '
+            f'-c:v libx264 -pix_fmt yuv420p -y "{out_path}" -loglevel error'
+        )
 
 
 def main(args):
@@ -155,11 +181,11 @@ def main(args):
                 out_path = output_dir / f"object_{obj_id}" / f"{frame_idx:05d}.png"
                 cv2.imwrite(str(out_path), mask_np)
 
-    # ---- Save visual mask videos ----
+    # ---- Save visual mask videos (mask overlaid on original frames) ----
     for obj_id in range(n_objects):
         mask_dir = output_dir / f"object_{obj_id}"
         video_path = output_dir / f"object_{obj_id}_mask.mp4"
-        save_mask_video(mask_dir, video_path)
+        save_mask_video(mask_dir, video_path, frame_dir=frame_dir)
         print(f"Mask video saved: {video_path}")
 
     print(f"\nSAM2 segmentation complete.")
