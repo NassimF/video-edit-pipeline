@@ -1,3 +1,6 @@
+# Research papers (large binary files — store locally only)
+*.pdf
+
 data/input/videos/*.mp4
 data/output/
 models/wan_vace/weights/
