@@ -1,6 +1,6 @@
 # Layer-Aware Video Editing Pipeline
 
-A modular, training-free pipeline for physically consistent, object-level video editing. Built for my master's thesis.
+A modular, training-free pipeline for physically consistent, object-level video editing. 
 
 The pipeline chains two pretrained models: **Generative Omnimatte** decomposes the video into per-object RGBA layers with soft alpha masks that capture the object and its physical effects (shadows, reflections). Those masks then spatially constrain **WAN VACE**, which performs text-guided masked inpainting on the original full video — editing only the masked region while preserving everything else.
 
