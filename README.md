@@ -87,6 +87,22 @@ git clone https://github.com/gen-omnimatte/gen-omnimatte-public.git /workspace/s
 git clone https://github.com/Wan-Video/Wan2.1.git /workspace/storage_nassim/Wan2.1
 ```
 
+### Required patch: gen-omnimatte SAM2 path
+
+`gen-omnimatte-public/omnimatte/utils.py` contains a hardcoded path to the original author's server. Patch it before running Stage 3:
+
+```python
+# In gen-omnimatte-public/omnimatte/utils.py, line ~344
+# Change:
+def __init__(self, sam_model='large', SAM_DIR="/nfshomes/yclee/disk/projects/sam2"):
+# To:
+def __init__(self, sam_model='large', SAM_DIR="/workspace/storage_nassim/sam2"):
+```
+
+### Input video resolution
+
+Both WAN VACE and Casper (Omnimatte Stage 1) require **832×480** resolution. Other resolutions (e.g. 640×384) are not supported and will raise errors. Stage 4 auto-resizes the input video if needed, but it is recommended to provide a native 832×480 video to avoid any quality loss from upscaling.
+
 ### Conda Environments
 
 Two environments are needed — specs are in `envs/`:
@@ -127,14 +143,15 @@ Expected: 6/6 checks pass — 2 A100s, all model files found, both conda envs wo
 bash scripts/run_pipeline.sh \
     --video data/input/videos/my_video.mp4 \
     --prompt "a person wearing a red shirt" \
-    --points "427,240"      # x,y of the object in frame 1
+    --boxes "345,140,425,330"   # xmin,ymin,xmax,ymax around the object in frame 1
 ```
 
 | Flag | Default | Description |
 |---|---|---|
 | `--video` | *(required)* | Input video path |
 | `--prompt` | *(required)* | Text editing prompt |
-| `--points` | `427,240` | SAM2 click point (x,y on object, frame 1) |
+| `--boxes` | — | SAM2 box prompt (xmin,ymin,xmax,ymax); preferred over `--points` for full-body coverage |
+| `--points` | `427,240` | SAM2 point prompt (x,y on object, frame 1); less reliable than boxes |
 | `--object` | `0` | Object index to edit |
 | `--mask_type` | `alpha` | `alpha` (Omnimatte soft) or `binary` (SAM2) |
 | `--bg_prompt` | `a natural background scene.` | Background description for Casper |
@@ -145,11 +162,14 @@ bash scripts/run_pipeline.sh \
 
 ```bash
 # Stage 1 — Segment the object (~1 min)
+# Box prompts (--boxes xmin,ymin,xmax,ymax) are more reliable than point prompts
+# for full-body coverage. Inspect the output mask video and re-run with adjusted
+# coordinates if needed.
 conda run -n omnimatte python scripts/01_segment.py \
     --video data/input/videos/my_video.mp4 \
-    --points "427,240"
+    --boxes "345,140,425,330"
 # Inspect: data/output/01_sam2_masks/object_0_mask.mp4
-# Adjust --points if needed, then re-run.
+# Adjust --boxes if needed, then re-run.
 
 # Stage 2 — Casper: solo videos + clean BG (~20 min)
 conda run -n omnimatte python scripts/02_omnimatte_stage1.py \
@@ -158,10 +178,12 @@ conda run -n omnimatte python scripts/02_omnimatte_stage1.py \
 # Inspect: data/output/02_solo_videos/  and  data/output/02_clean_bg/
 
 # Stage 3 — RGBA optimization (~10 min)
+# Requires the SAM2 path patch in gen-omnimatte-public/omnimatte/utils.py (see Setup)
 conda run -n omnimatte python scripts/03_omnimatte_stage2.py
 # Inspect: data/output/03_alpha_masks/alpha_object_0.mp4
 
 # Stage 4 — WAN VACE edit (~5 min)
+# Input video is auto-resized to 832x480 if needed (VACE hard requirement)
 conda run -n wan21 python scripts/04_wan_vace_edit.py \
     --video data/input/videos/my_video.mp4 \
     --alpha data/output/03_alpha_masks/alpha_object_0.mp4 \
