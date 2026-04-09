@@ -38,6 +38,7 @@ import sys
 import cv2
 import argparse
 import tempfile
+import shutil
 import numpy as np
 from pathlib import Path
 
@@ -111,9 +112,18 @@ def load_sam2_binary_mask(
     return binary
 
 
+def resize_video(src_path: str, out_path: str, width: int, height: int, fps: float = 16.0) -> None:
+    """Re-encode video to target resolution using ffmpeg."""
+    ret = os.system(
+        f'ffmpeg -i "{src_path}" -vf "scale={width}:{height}" '
+        f'-r {fps} -c:v libx264 -pix_fmt yuv420p -y "{out_path}" -loglevel error'
+    )
+    if ret != 0:
+        raise RuntimeError(f"ffmpeg resize failed for {src_path}")
+
+
 def save_mask_as_video(mask: np.ndarray, out_path: str, fps: float = 16.0) -> None:
     """Save (T, H, W) binary mask array as a grayscale MP4 for VACE via ffmpeg."""
-    import tempfile, shutil
     T, H, W = mask.shape
     tmpdir = Path(tempfile.mkdtemp(prefix="mask_frames_"))
     try:
@@ -215,10 +225,28 @@ def main(args):
     else:
         size = SIZE_CONFIGS[size_str]
 
+    # VACE loads videos at their native resolution — resize input to target size
+    # so output matches the alpha mask resolution (832×480)
+    W_target, H_target = size
+    cap_check = cv2.VideoCapture(args.video)
+    vid_w = int(cap_check.get(cv2.CAP_PROP_FRAME_WIDTH))
+    vid_h = int(cap_check.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    cap_check.release()
+
+    input_video_path = args.video
+    tmp_resized_video = None
+    if vid_w != W_target or vid_h != H_target:
+        print(f"Resizing input video from {vid_w}x{vid_h} to {W_target}x{H_target}...")
+        tmp_resized = tempfile.NamedTemporaryFile(suffix="_resized.mp4", delete=False)
+        tmp_resized_video = tmp_resized.name
+        tmp_resized.close()
+        resize_video(args.video, tmp_resized_video, W_target, H_target, fps=args.fps)
+        input_video_path = tmp_resized_video
+
     # Prepare source (video + mask)
     print(f"Preparing source video + mask...")
     src_videos, src_masks, src_ref_images = wan_vace.prepare_source(
-        src_video=[args.video],
+        src_video=[input_video_path],
         src_mask=[tmp_mask_path],
         src_ref_images=[None],
         num_frames=target_frames,
@@ -268,7 +296,6 @@ def main(args):
         video_np = np.array(output_video)
 
     T, H, W, C = video_np.shape
-    import tempfile, shutil
     tmpdir = Path(tempfile.mkdtemp(prefix="edited_frames_"))
     try:
         for t in range(T):
@@ -283,8 +310,10 @@ def main(args):
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
-    # Cleanup temp mask file
+    # Cleanup temp files
     os.unlink(tmp_mask_path)
+    if tmp_resized_video and os.path.exists(tmp_resized_video):
+        os.unlink(tmp_resized_video)
 
     print(f"\nEdited video saved: {output_path}")
 
