@@ -1,0 +1,40 @@
+# Conda environment spec for Stage 4 (WAN VACE editing)
+# Existing env name: wan21 (torch 2.8.0+cu126)
+# To recreate: conda env create -f envs/wan_env.yaml
+#
+# Key packages (as installed on DGX server, 2026-04):
+#   torch 2.8.0+cu126  — CUDA 12.6 build (compatible with CUDA 12.2+ driver)
+#   diffusers 0.35.1
+#   transformers 4.56.1
+#   ftfy               — required by wan.modules.tokenizers
+#   decord             — video loading for VACE
+#   easydict           — wan config system
+#
+# WAN VACE is used via direct Python import (not installed as package):
+#   sys.path.insert(0, '/workspace/storage_nassim/Wan2.1')
+#   from wan import WanVace
+
+name: wan21
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - torch==2.8.0+cu126 --index-url https://download.pytorch.org/whl/cu126
+    - torchvision==0.23.0+cu126 --index-url https://download.pytorch.org/whl/cu126
+    - accelerate==1.10.1
+    - diffusers==0.35.1
+    - transformers==4.56.1
+    - opencv-python==4.11.0.86
+    - imageio==2.37.0
+    - imageio-ffmpeg==0.6.0
+    - ftfy==6.3.1
+    - decord==0.6.0
+    - easydict==1.13
+    - huggingface-hub==0.35.0
+    # WAN VACE: use via sys.path (no install needed)
+    # sys.path.insert(0, '/workspace/storage_nassim/Wan2.1')

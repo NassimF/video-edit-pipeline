@@ -1,0 +1,69 @@
+# ============================================================
+# Layer-Aware Video Editing Pipeline — Configuration
+# Target: DGX A100, 2× A100-SXM4-80GB, CUDA 12.2, Ubuntu 22.04
+# ============================================================
+
+# --- Absolute base paths (server-specific) ---
+base_dir: "/workspace/storage_nassim/Video-restyle"
+sam2_repo: "/workspace/storage_nassim/sam2"
+omnimatte_repo: "/workspace/storage_nassim/gen-omnimatte-public"
+wan_repo: "/workspace/storage_nassim/Wan2.1"
+
+# --- Input ---
+input:
+  video_path: "data/input/videos/my_video.mp4"   # relative to base_dir
+  fps: 16                  # gen-omnimatte Wan2.1 pipeline default is 16
+  max_frames: 81           # must be 4n+1; Wan2.1-Fun-1.3B-InP supports up to 81
+  resolution: "480p"       # 480x832 (HxW) — gen-omnimatte default for Wan2.1
+
+# --- GPU assignment ---
+gpu:
+  omnimatte_device: "cuda:0"     # GPU 0: SAM2 + all Omnimatte stages
+  wan_device: "cuda:1"           # GPU 1: WAN VACE 1.3B single-GPU
+  wan_multi_gpu: false           # Set true for WAN VACE 14B (uses both GPUs)
+  wan_model_size: "1.3B"         # "1.3B" or "14B"
+
+# --- SAM2 segmentation ---
+sam2:
+  checkpoint: "/workspace/storage_nassim/sam2/checkpoints/sam2.1_hiera_large.pt"
+  model_cfg: "configs/sam2.1/sam2.1_hiera_l.yaml"   # relative to sam2_repo
+  prompt_mode: "point"           # "point" or "box"
+
+# --- Generative Omnimatte (gen-omnimatte-public) ---
+omnimatte:
+  # Base inpainting model (Wan2.1-Fun-1.3B-InP)
+  model_name: "/workspace/storage_nassim/gen-omnimatte-public/checkpoints/Wan2.1-Fun-1.3B-InP"
+  # Casper fine-tuned transformer weights (1.3B version)
+  transformer_path: "/workspace/storage_nassim/gen-omnimatte-public/checkpoints/wan2.1-v1.0-1.3b-transformer.safetensors"
+  config_path: "config/wan2.1/wan_civitai.yaml"      # relative to omnimatte_repo
+  sample_size: "480x832"         # HxW — matches Wan2.1 native resolution
+  num_inference_steps: 50
+  guidance_scale: 1.0            # Paper default for object-effect removal
+  gpu_memory_mode: "model_cpu_offload"  # Safer for 80GB GPU alongside other stages
+
+# --- WAN VACE editing ---
+wan_vace:
+  # Weights downloaded to: base_dir/models/wan_vace/weights/1.3B/
+  weights_1b: "models/wan_vace/weights/1.3B"         # relative to base_dir
+  weights_14b: "models/wan_vace/weights/14B"          # relative to base_dir
+  num_inference_steps: 50
+  guidance_scale: 5.0
+  shift: 5.0                     # Noise schedule shift for 1.3B
+  frame_num: 81                  # Must be 4n+1; match input.max_frames
+  sample_solver: "unipc"         # "unipc" or "dpm++"
+  mask_dilation_px: 5            # Dilate alpha mask before passing to VACE
+  alpha_threshold: 0.1           # Binarize: alpha > threshold → edit region
+
+# --- Editing parameters ---
+editing:
+  mask_type: "alpha"             # "alpha" (Omnimatte soft) or "binary" (SAM2)
+  edit_prompt: "a person wearing a red shirt"
+  negative_prompt: ""
+  target_object_index: 0         # 0-indexed, matches SAM2 mask order
+
+# --- Output ---
+output:
+  dir: "data/output"             # relative to base_dir
+  save_intermediate: true
+  video_format: "mp4"
+  comparison_video: true

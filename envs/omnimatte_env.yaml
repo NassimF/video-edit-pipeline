@@ -1,0 +1,45 @@
+# Conda environment spec for Stages 1-3 (SAM2 + Generative Omnimatte)
+# Existing env name: omnimatte (torch 2.5.1+cu121)
+# To recreate: conda env create -f envs/omnimatte_env.yaml
+#
+# Key packages (as installed on DGX server, 2026-04):
+#   torch 2.5.1+cu121  — CUDA 12.1 build (compatible with CUDA 12.2 driver)
+#   SAM-2 1.0          — installed from /workspace/storage_nassim/sam2
+#   diffusers 0.32.2
+#   transformers 4.46.2
+#   mediapy, absl-py, ml_collections  — required by gen-omnimatte CLI
+#   loguru             — required by gen-omnimatte
+
+name: omnimatte
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - torch==2.5.1+cu121 --index-url https://download.pytorch.org/whl/cu121
+    - torchvision==0.20.1+cu121 --index-url https://download.pytorch.org/whl/cu121
+    - torchaudio==2.5.1+cu121 --index-url https://download.pytorch.org/whl/cu121
+    - accelerate==1.1.1
+    - diffusers==0.32.2
+    - transformers==4.46.2
+    - opencv-python==4.11.0.86
+    - imageio==2.37.0
+    - imageio-ffmpeg==0.6.0
+    - mediapy==1.2.4
+    - pillow==10.4.0
+    - scipy==1.15.3
+    - einops==0.8.1
+    - omegaconf==2.3.0
+    - absl-py==2.3.1
+    - ml_collections==1.1.0
+    - loguru==0.7.3
+    - torchdiffeq==0.2.5
+    - torchsde==0.2.6
+    # SAM2: install from repo
+    # pip install -e /workspace/storage_nassim/sam2
+    # gen-omnimatte: install from repo
+    # pip install -e /workspace/storage_nassim/gen-omnimatte-public

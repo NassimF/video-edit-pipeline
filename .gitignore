@@ -1,0 +1,8 @@
+data/input/videos/*.mp4
+data/output/
+models/wan_vace/weights/
+logs/*.log
+__pycache__/
+*.pyc
+.tmp/
+*.egg-info/
