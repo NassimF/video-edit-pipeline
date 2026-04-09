@@ -112,18 +112,19 @@ def load_sam2_binary_mask(
 
 
 def save_mask_as_video(mask: np.ndarray, out_path: str, fps: float = 16.0) -> None:
-    """Save (T, H, W) binary mask array as a grayscale MP4 for VACE."""
+    """Save (T, H, W) binary mask array as a grayscale MP4 for VACE via ffmpeg."""
+    import tempfile, shutil
     T, H, W = mask.shape
-    writer = cv2.VideoWriter(
-        out_path,
-        cv2.VideoWriter_fourcc(*"mp4v"),
-        fps,
-        (W, H),
-        isColor=False,
-    )
-    for t in range(T):
-        writer.write((mask[t] * 255).astype(np.uint8))
-    writer.release()
+    tmpdir = Path(tempfile.mkdtemp(prefix="mask_frames_"))
+    try:
+        for t in range(T):
+            cv2.imwrite(str(tmpdir / f"{t:05d}.png"), (mask[t] * 255).astype(np.uint8))
+        os.system(
+            f'ffmpeg -framerate {fps} -i "{tmpdir}/%05d.png" '
+            f'-c:v libx264 -pix_fmt yuv420p -y "{out_path}" -loglevel error'
+        )
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def align_frame_count(mask: np.ndarray, target_frames: int) -> np.ndarray:
@@ -267,19 +268,20 @@ def main(args):
         video_np = np.array(output_video)
 
     T, H, W, C = video_np.shape
-    writer = cv2.VideoWriter(
-        str(output_path),
-        cv2.VideoWriter_fourcc(*"mp4v"),
-        args.fps,
-        (W, H),
-        isColor=True,
-    )
-    for t in range(T):
-        frame_bgr = cv2.cvtColor(
-            (video_np[t] * 255).astype(np.uint8), cv2.COLOR_RGB2BGR
+    import tempfile, shutil
+    tmpdir = Path(tempfile.mkdtemp(prefix="edited_frames_"))
+    try:
+        for t in range(T):
+            frame_bgr = cv2.cvtColor(
+                (video_np[t] * 255).astype(np.uint8), cv2.COLOR_RGB2BGR
+            )
+            cv2.imwrite(str(tmpdir / f"{t:05d}.png"), frame_bgr)
+        os.system(
+            f'ffmpeg -framerate {args.fps} -i "{tmpdir}/%05d.png" '
+            f'-c:v libx264 -pix_fmt yuv420p -y "{output_path}" -loglevel error'
         )
-        writer.write(frame_bgr)
-    writer.release()
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
     # Cleanup temp mask file
     os.unlink(tmp_mask_path)
