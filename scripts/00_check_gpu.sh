@@ -35,7 +35,11 @@ nvidia-smi --query-gpu=index,name,memory.total,memory.free --format=csv,noheader
 echo ""
 echo "--- CUDA / nvcc ---"
 nvcc_ver=$(nvcc --version 2>/dev/null | grep "release" | awk '{print $5}' | tr -d ',')
-[ -n "$nvcc_ver" ] && check "nvcc $nvcc_ver" "ok" || check "nvcc" "fail"
+if [ -n "$nvcc_ver" ]; then
+    check "nvcc $nvcc_ver" "ok"
+else
+    echo "  [WARN] nvcc not in PATH (non-critical — inference only needs CUDA runtime)"
+fi
 
 echo ""
 echo "--- Model files ---"

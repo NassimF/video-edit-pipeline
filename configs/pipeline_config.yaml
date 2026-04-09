@@ -26,7 +26,7 @@ gpu:
 # --- SAM2 segmentation ---
 sam2:
   checkpoint: "/workspace/storage_nassim/sam2/checkpoints/sam2.1_hiera_large.pt"
-  model_cfg: "configs/sam2.1/sam2.1_hiera_l.yaml"   # relative to sam2_repo
+  model_cfg: "configs/sam2.1/sam2.1_hiera_l.yaml"   # Hydra-relative (inside sam2 package)
   prompt_mode: "point"           # "point" or "box"
 
 # --- Generative Omnimatte (gen-omnimatte-public) ---

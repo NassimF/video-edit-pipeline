@@ -88,7 +88,9 @@ def main(args):
     device = args.device
 
     # ---- Build SAM2 predictor ----
-    cfg_path = os.path.join(SAM2_REPO, "configs", "sam2.1", "sam2.1_hiera_l.yaml")
+    # SAM2 uses Hydra config system: config_file is a path relative to the
+    # package's internal configs/ directory, NOT an absolute filesystem path.
+    cfg_path = "configs/sam2.1/sam2.1_hiera_l.yaml"
     checkpoint = "/workspace/storage_nassim/sam2/checkpoints/sam2.1_hiera_large.pt"
     print(f"Loading SAM2 from {checkpoint}")
     predictor = build_sam2_video_predictor(cfg_path, checkpoint, device=device)
