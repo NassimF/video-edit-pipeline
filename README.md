@@ -160,41 +160,111 @@ bash scripts/run_pipeline.sh \
 
 ### Stage-by-stage (recommended for first run)
 
+#### Stage 1 — SAM2 Segmentation
+
 ```bash
-# Stage 1 — Segment the object (~1 min)
-# Box prompts (--boxes xmin,ymin,xmax,ymax) are more reliable than point prompts
-# for full-body coverage. Inspect the output mask video and re-run with adjusted
-# coordinates if needed.
 conda run -n omnimatte python scripts/01_segment.py \
     --video data/input/videos/my_video.mp4 \
     --boxes "345,140,425,330"
 # Inspect: data/output/01_sam2_masks/object_0_mask.mp4
-# Adjust --boxes if needed, then re-run.
+# Adjust coordinates if needed, then re-run.
+```
 
-# Stage 2 — Casper: solo videos + clean BG (~20 min)
+| Flag | Default | Description |
+|---|---|---|
+| `--video` | *(required)* | Input video path |
+| `--boxes` | — | Box prompt(s) as `xmin,ymin,xmax,ymax` — one per object. Preferred over `--points` for full-body coverage |
+| `--points` | — | Point prompt(s) as `x,y` — one per object. Less reliable for full-body segmentation |
+| `--output` | `data/output/01_sam2_masks` | Output directory |
+| `--resolution` | `832x480` | Frame resolution (must match model requirements) |
+| `--device` | `cuda:0` | GPU device |
+
+#### Stage 2 — Casper (Solo Videos + Clean BG)
+
+```bash
 conda run -n omnimatte python scripts/02_omnimatte_stage1.py \
     --video data/input/videos/my_video.mp4 \
     --bg_prompt "a sunny outdoor scene"
 # Inspect: data/output/02_solo_videos/  and  data/output/02_clean_bg/
+```
 
-# Stage 3 — RGBA optimization (~10 min)
+| Flag | Default | Description |
+|---|---|---|
+| `--video` | *(required)* | Input video path |
+| `--bg_prompt` | `a natural background scene.` | Text description of the background for Casper inpainting |
+| `--masks_dir` | `data/output/01_sam2_masks` | SAM2 mask output directory from Stage 1 |
+| `--output` | `data/output` | Base output directory |
+| `--device` | `cuda:0` | GPU device |
+
+#### Stage 3 — RGBA Optimization
+
+```bash
 # Requires the SAM2 path patch in gen-omnimatte-public/omnimatte/utils.py (see Setup)
 conda run -n omnimatte python scripts/03_omnimatte_stage2.py
 # Inspect: data/output/03_alpha_masks/alpha_object_0.mp4
+```
 
-# Stage 4 — WAN VACE edit (~5 min)
-# Input video is auto-resized to 832x480 if needed (VACE hard requirement)
+| Flag | Default | Description |
+|---|---|---|
+| `--casper_workspace` | `data/output/casper_workspace` | Sequence directory created by Stage 2 |
+| `--casper_outputs` | `data/output/casper_outputs` | Raw Casper MP4 outputs from Stage 2 |
+| `--output` | `data/output/03_rgba_layers` | RGBA layer output directory |
+| `--device` | `cuda:0` | GPU device |
+
+#### Stage 4 — WAN VACE Editing
+
+```bash
+# Object edit (single object):
 conda run -n wan21 python scripts/04_wan_vace_edit.py \
     --video data/input/videos/my_video.mp4 \
     --alpha data/output/03_alpha_masks/alpha_object_0.mp4 \
-    --prompt "a person wearing a red shirt"
+    --prompt "a person wearing a red shirt" \
+    --output data/output/04_edited_video/edited.mp4
 
-# Stage 5 — Comparison video
+# Background edit (invert combined object masks):
+conda run -n wan21 python scripts/04_wan_vace_edit.py \
+    --video data/input/videos/my_video.mp4 \
+    --alpha data/output/03_alpha_masks/alpha_object_0.mp4 data/output/03_alpha_masks/alpha_object_1.mp4 \
+    --background \
+    --prompt "a warm golden sunset beach, orange and pink sky" \
+    --output data/output/04_edited_video/edited_bg.mp4
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--video` | *(required)* | Original input video path. Auto-resized to 832×480 if needed |
+| `--prompt` | *(required)* | Text description of the desired edit |
+| `--alpha` | — | Omnimatte alpha mask video path(s). Pass multiple paths to union them |
+| `--background` | `False` | Invert the combined alpha mask to edit the background instead of the objects |
+| `--sam2_mask` | — | SAM2 mask directory (for binary mask mode) |
+| `--mask_type` | `alpha` | `alpha` (Omnimatte soft mask) or `binary` (SAM2 mask) |
+| `--output` | `data/output/04_edited_video/edited.mp4` | Output video path |
+| `--model_size` | `1.3B` | `1.3B` (~10 GB VRAM) or `14B` (~70 GB VRAM) |
+| `--device` | `cuda:1` | GPU device (use `cuda:1` to leave GPU 0 free for other stages) |
+| `--num_steps` | `50` | Number of diffusion steps |
+| `--guidance_scale` | `5.0` | Classifier-free guidance scale |
+| `--negative_prompt` | `""` | Negative prompt |
+| `--seed` | `42` | Random seed |
+| `--alpha_threshold` | `0.1` | Binarisation threshold for soft alpha masks |
+| `--mask_dilation_px` | `5` | Mask dilation in pixels (captures edge pixels) |
+| `--frame_num` | `81` | Max frames to process (must be 4n+1) |
+| `--size` | `832*480` | Output resolution as `W*H` |
+
+#### Stage 5 — Comparison Video
+
+```bash
 conda run -n omnimatte python scripts/05_visualize_results.py \
     --original data/input/videos/my_video.mp4 \
     --edited data/output/04_edited_video/edited.mp4 \
     --alpha data/output/03_alpha_masks/alpha_object_0.mp4
 ```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--original` | *(required)* | Original input video |
+| `--edited` | *(required)* | Edited output video from Stage 4 |
+| `--alpha` | *(required)* | Alpha mask video from Stage 3 |
+| `--output` | `data/output/comparison.mp4` | Side-by-side comparison video path |
 
 ### Object replacement (binary mask)
 
