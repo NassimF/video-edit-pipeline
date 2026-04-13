@@ -160,17 +160,24 @@ def main(args):
     # Determine mask type
     mask_type = args.mask_type
     if mask_type == "alpha" and not args.alpha:
-        raise ValueError("--alpha path required when --mask_type alpha")
+        raise ValueError("--alpha path(s) required when --mask_type alpha")
     if mask_type == "binary" and not args.sam2_mask:
         raise ValueError("--sam2_mask path required when --mask_type binary")
 
     # Load mask
     if mask_type == "alpha":
-        mask = load_alpha_mask_from_video(
-            args.alpha,
-            dilation_px=args.mask_dilation_px,
-            threshold=args.alpha_threshold,
-        )
+        # Load and union all provided alpha masks (element-wise max)
+        masks = [
+            load_alpha_mask_from_video(p, dilation_px=args.mask_dilation_px, threshold=args.alpha_threshold)
+            for p in args.alpha
+        ]
+        mask = masks[0]
+        for m in masks[1:]:
+            mask = np.maximum(mask, m)
+        if args.background:
+            # Invert: edit everything outside the objects
+            mask = 1 - mask
+            print(f"Background mode: inverted mask, edit region = {mask.mean()*100:.1f}% of pixels")
     else:
         mask = load_sam2_binary_mask(args.sam2_mask, dilation_px=args.mask_dilation_px)
 
@@ -324,8 +331,12 @@ if __name__ == "__main__":
 
     # Mask inputs (choose one)
     parser.add_argument(
-        "--alpha", default=None,
-        help="Omnimatte alpha mask video path (for appearance edits)"
+        "--alpha", default=None, nargs="+",
+        help="Omnimatte alpha mask video path(s). Pass multiple paths to union them (e.g. for background editing)."
+    )
+    parser.add_argument(
+        "--background", action="store_true", default=False,
+        help="Invert the combined alpha mask to edit the background instead of the objects."
     )
     parser.add_argument(
         "--sam2_mask", default=None,
