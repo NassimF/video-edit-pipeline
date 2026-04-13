@@ -191,6 +191,12 @@ def main(args):
         tmp_mask_path = tmp.name
     save_mask_as_video(mask, tmp_mask_path, fps=args.fps)
 
+    # Optionally save mask for inspection
+    if args.save_mask:
+        mask_save_path = str(output_path).replace(".mp4", "_mask.mp4")
+        shutil.copy2(tmp_mask_path, mask_save_path)
+        print(f"Mask saved: {mask_save_path}")
+
     # Set GPU
     device_id = args.device.replace("cuda:", "")
     os.environ["CUDA_VISIBLE_DEVICES"] = device_id
@@ -381,6 +387,8 @@ if __name__ == "__main__":
     # Mask processing
     parser.add_argument("--mask_dilation_px", type=int, default=5)
     parser.add_argument("--alpha_threshold", type=float, default=0.1)
+    parser.add_argument("--save_mask", action="store_true", default=False,
+                        help="Save the final VACE mask alongside the output video as <output>_mask.mp4")
     parser.add_argument(
         "--offload_model", action="store_true", default=True,
         help="Offload model to CPU between steps (saves VRAM)"
