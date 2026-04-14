@@ -186,6 +186,10 @@ def main(args):
     mask = align_frame_count(mask, target_frames)
     print(f"Frame count aligned to {target_frames} (4n+1 constraint)")
 
+    # Resolve output path early (needed for save_mask)
+    output_path = Path(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
     # Save mask as temporary video for VACE
     with tempfile.NamedTemporaryFile(suffix="_mask.mp4", delete=False) as tmp:
         tmp_mask_path = tmp.name
@@ -293,8 +297,6 @@ def main(args):
     )
 
     # Save output
-    output_path = Path(args.output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # output_video is a tensor (C, T, H, W) in [0,1] or [-1,1]
     # Convert and write with OpenCV
